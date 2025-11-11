@@ -5,6 +5,7 @@ app = Chalice(app_name='triplanetary')
 
 @app.route('/')
 def index():
+    """Greet the user by their username."""
     return {'hello': 'world'}
 
 @app.route('/users', methods=['POST'])
