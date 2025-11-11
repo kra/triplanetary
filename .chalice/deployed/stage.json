@@ -1,0 +1,23 @@
+{
+  "resources": [
+    {
+      "name": "api_handler_role",
+      "resource_type": "iam_role",
+      "role_arn": "arn:aws:iam::168594572693:role/triplanetary-stage-api_handler",
+      "role_name": "triplanetary-stage-api_handler"
+    },
+    {
+      "name": "api_handler",
+      "resource_type": "lambda_function",
+      "lambda_arn": "arn:aws:lambda:us-west-2:168594572693:function:triplanetary-stage"
+    },
+    {
+      "name": "rest_api",
+      "resource_type": "rest_api",
+      "rest_api_id": "o3exaqn6q7",
+      "rest_api_url": "https://o3exaqn6q7.execute-api.us-west-2.amazonaws.com/api/"
+    }
+  ],
+  "schema_version": "2.0",
+  "backend": "api"
+}
