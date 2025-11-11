@@ -8,14 +8,20 @@
         "s3:PutObject",
         "s3:DeleteObject"
       ],
-      "Resource": "arn:aws:s3:::users/*"
+      "Resource": [
+        "arn:aws:s3:::triplanetary-users-stage/*",
+        "arn:aws:s3:::triplanetary-users-prod/*"
+      ]
     },
     {
       "Effect": "Allow",
       "Action": [
         "s3:ListBucket"
       ],
-      "Resource": "arn:aws:s3:::users"
+      "Resource": [
+        "arn:aws:s3:::triplanetary-users-stage",
+        "arn:aws:s3:::triplanetary-users-prod"
+      ]
     },
     {
       "Effect": "Allow",

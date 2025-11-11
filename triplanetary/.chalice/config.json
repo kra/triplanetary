@@ -7,7 +7,7 @@
             "autogen_policy": false,
             "iam_policy_file": "policy.json",        
             "environment_variables": {
-                "S3_BUCKET_NAME": "users-stage",
+                "S3_BUCKET_NAME": "triplanetary-users-stage",
                 "APP_ENV": "development"
             }
         },
@@ -16,7 +16,7 @@
             "autogen_policy": false,
             "iam_policy_file": "policy.json",        
             "environment_variables": {
-                "S3_BUCKET_NAME": "users-prod",
+                "S3_BUCKET_NAME": "triplanetary-users-prod",
                 "APP_ENV": "production"
             }
         }
