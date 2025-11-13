@@ -10,7 +10,3 @@ env = {'S3_USERS_BUCKET': 'triplanetary-users-stage',
 class TestApp(TestCase):
     def test_dummy(self):
         self.assertEqual(None, None)
-
-
-if __name__ == '__main__':
-    unittest.main()
