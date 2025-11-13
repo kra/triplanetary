@@ -19,9 +19,8 @@ def get_bucket_name():
     """Get the S3 bucket name from environment variables."""
     return os.environ.get('S3_USERS_BUCKET', 'triplanetary-users-stage')
 
-def get_credentials_from_header():
+def get_credentials_from_header(request):
     """Extract username and password from Basic Auth header."""
-    request = app.current_request
     auth_header = request.headers.get('authorization', '')
 
     if not auth_header.startswith('Basic '):
@@ -40,21 +39,17 @@ def verify_user(username, password):
         return False
 
     bucket_name = get_bucket_name()
-    log(bucket_name)
 
     try:
         response = s3_client.get_object(Bucket=bucket_name, Key=username)
-        log(response)
         user_data = json.loads(response['Body'].read().decode('utf-8'))
-        log(user_data)
         return user_data.get('password') == password
     except s3_client.exceptions.NoSuchKey:
         return False
 
-def require_auth():
+def require_auth(request):
     """Decorator-like function to verify authentication."""
-    (username, password) = get_credentials_from_header()
-    log((username, password))
+    (username, password) = get_credentials_from_header(request)
 
     if not verify_user(username, password):
         raise UnauthorizedError('Invalid credentials')
@@ -90,14 +85,14 @@ def delete_user(username):
 @app.route('/')
 def index():
     """Greet the user by their username."""
-    username = require_auth()
+    username = require_auth(app.current_request)
     return {'message': f'Hello, {username}!'}
 
 
 @app.route('/users', methods=['GET'])
 def list_users():
     """Display a list of all usernames."""
-    require_auth()
+    require_auth(app.current_request)
     usernames = list_all_users()
     return {'users': usernames}
 
@@ -105,7 +100,7 @@ def list_users():
 @app.route('/users', methods=['POST'])
 def create_user():
     """Add or update a user."""
-    require_auth()
+    require_auth(app.current_request)
 
     request = app.current_request
     user_data = request.json_body
@@ -126,20 +121,9 @@ def create_user():
 @app.route('/users', methods=['DELETE'])
 def remove_user():
     """Remove a user."""
-    require_auth()
+    require_auth(app.current_request)
 
     request = app.current_request
-    user_data = request.json_body
-
-    if not user_data:
-        return Response(
-            body={'error': 'Request body is required'},
-            status_code=400)
-
-    username = user_data.get('username')
-    if not username:
-        return Response(
-            body={'error': 'username is required'},
-            status_code=400)
+    username = request.json_body.get('username')
     delete_user(username)
     return {'message': f'User {username} deleted successfully'}
