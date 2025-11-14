@@ -357,7 +357,6 @@ class TestMovementPhaseIntegration:
         
         assert len(results) == 1
         result = results[0]
-        assert result.name == "Test game.Ship"
         assert result.new_position == game.Position(2, 0)
         assert result.new_vector == game.Vector(2, 0)
         assert not result.crashed
@@ -395,8 +394,6 @@ class TestMovementPhaseIntegration:
         results = game.execute_movement_phase(ships, [])
         
         assert len(results) == 2
-        assert results[0].name == "game.Ship1"
-        assert results[1].name == "game.Ship2"
         assert results[0].new_position == game.Position(1, 0)
         assert results[1].new_position == game.Position(5, 6)
     

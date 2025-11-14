@@ -82,9 +82,8 @@ class MapFeature:
 
 
 @dataclass
-class MovementResult:
+class Movement:
     """Result of movement for one ship"""
-    name: str
     new_position: Position
     new_vector: Vector
     strong_gravity_next_turn: List[Vector]
@@ -207,7 +206,7 @@ def get_gravity_effects(path: List[Position], features: List[MapFeature]) -> Tup
 
 
 def execute_movement_phase(
-        ships: List[Ship], features: List[MapFeature]) -> List[MovementResult]:
+        ships: List[Ship], features: List[MapFeature]) -> List[Movement]:
     """
     Execute the movement phase for all ships.
     
@@ -235,8 +234,7 @@ def execute_movement_phase(
         # Determine gravity effects for NEXT turn from hexes entered THIS turn
         strong_gravity_next, weak_gravity_next = get_gravity_effects(path, features)
         
-        result = MovementResult(
-            name=ship.name,
+        result = Movement(
             new_position=final_position,
             new_vector=new_vector,
             strong_gravity_next_turn=strong_gravity_next,
