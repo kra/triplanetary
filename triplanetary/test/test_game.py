@@ -259,7 +259,7 @@ class TestLandingAndTakeoff:
     
     def test_cannot_land_not_in_orbit(self):
         """Ship not in orbit cannot land"""
-        ship = game.Ship(name="Lander", starting_position=game.Position(5, 5))
+        ship = game.Ship(name="Lander")
         features = []
         action = game.Action(
             acceleration=game.Vector(1, 0),
@@ -267,21 +267,21 @@ class TestLandingAndTakeoff:
             landing=True
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5)],
-            [game.Vector(2, 0)],  # Speed 2, not in orbit
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5),
+            game.Vector(2, 0),  # Speed 2, not in orbit
+            [],
+            action,
             features
         )
         
-        assert results[0].crashed
-        assert "not in orbit" in results[0].crash_reason
+        assert result.crashed
+        assert "not in orbit" in result.crash_reason
     
     def test_cannot_land_no_base(self):
         """Ship cannot land without a base at destination"""
-        ship = game.Ship(name="Lander", starting_position=game.Position(5, 5))
+        ship = game.Ship(name="Lander")
         features = [
             game.MapFeature("Mars Grav 1", game.FeatureType.STRONG_GRAVITY,
                           game.Position(5, 5), game.Vector(0, 1), planet_name="Mars"),
@@ -295,117 +295,117 @@ class TestLandingAndTakeoff:
             landing=True
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5)],
-            [game.Vector(1, 0)],  # In orbit
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5),
+            game.Vector(1, 0),  # In orbit
+            [],
+            action,
             features
         )
         
-        assert results[0].crashed
-        assert "no base" in results[0].crash_reason
+        assert result.crashed
+        assert "no base" in result.crash_reason
     
     def test_successful_landing(self):
         """Ship successfully lands from orbit"""
-        ship = game.Ship(name="Lander", starting_position=game.Position(5, 5))
+        ship = game.Ship(name="Lander")
         features = [
             game.MapFeature("Mars Grav 1", game.FeatureType.STRONG_GRAVITY,
                           game.Position(5, 5), game.Vector(0, 1), planet_name="Mars"),
             game.MapFeature("Mars Grav 2", game.FeatureType.STRONG_GRAVITY,
-                          game.Position(6, 5), game.Vector(-1, 0), planet_name="Mars"),
+                          game.Position(5, 6), game.Vector(0, -1), planet_name="Mars"),
             game.MapFeature("Mars", game.FeatureType.PLANET, game.Position(6, 6)),
-            game.MapFeature("Mars Base", game.FeatureType.BASE, game.Position(6, 5)),
+            game.MapFeature("Mars Base", game.FeatureType.BASE, game.Position(6, 6)),
         ]
         action = game.Action(
-            acceleration=game.Vector(1, 0),
+            acceleration=game.Vector(1, 0),  # Burn 1 fuel point
             chosen_weak_gravity=[],
             landing=True
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5)],
-            [game.Vector(1, 0)],  # In orbit
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5),
+            game.Vector(0, 1),  # In orbit between (5,5) and (5,6)
+            [],
+            action,
             features
         )
 
-        # XXX this fails
-        #assert not results[0].crashed
-        #assert results[0].new_position.landed
-        #assert results[0].new_position == game.Position(6, 5, landed=True)
-        assert results[0].new_vector == game.Vector(0, 0)  # Stationary
+        assert not result.crashed
+        assert result.new_position.landed
+        assert result.new_position == game.Position(6, 6, landed=True)
+        assert result.new_vector == game.Vector(0, 0)  # Stationary
     
     def test_cannot_move_while_landed(self):
         """Landed ship cannot move without taking off"""
-        ship = game.Ship(name="Lander", starting_position=game.Position(5, 5, landed=True))
+        ship = game.Ship(name="Lander")
         action = game.Action(
             acceleration=game.Vector(1, 0),
             chosen_weak_gravity=[]
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5, landed=True)],
-            [game.Vector(0, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5, landed=True),
+            game.Vector(0, 0),
+            [],
+            action,
             []
         )
         
-        assert results[0].crashed
-        assert "must take off" in results[0].crash_reason
+        assert result.crashed
+        assert "must take off" in result.crash_reason
     
     def test_cannot_takeoff_not_landed(self):
         """Cannot take off if not landed"""
-        ship = game.Ship(name="Ship", starting_position=game.Position(5, 5))
+        ship = game.Ship(name="Ship")
         action = game.Action(
             acceleration=game.Vector(0, 1),
             chosen_weak_gravity=[],
             taking_off=True
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5)],
-            [game.Vector(0, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5),
+            game.Vector(0, 0),
+            [],
+            action,
             []
         )
         
-        assert results[0].crashed
-        assert "not landed" in results[0].crash_reason
+        assert result.crashed
+        assert "not landed" in result.crash_reason
     
     def test_cannot_takeoff_no_base(self):
         """Cannot take off without a base"""
-        ship = game.Ship(name="Lander", starting_position=game.Position(5, 5, landed=True))
+        ship = game.Ship(name="Lander")
         action = game.Action(
             acceleration=game.Vector(0, 1),
             chosen_weak_gravity=[],
             taking_off=True
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5, landed=True)],
-            [game.Vector(0, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5, landed=True),
+            game.Vector(0, 0),
+            [],
+            action,
             []  # No base
         )
         
-        assert results[0].crashed
-        assert "no base" in results[0].crash_reason
+        assert result.crashed
+        assert "no base" in result.crash_reason
     
     def test_successful_takeoff(self):
         """Ship successfully takes off from base"""
-        ship = game.Ship(name="Lander", starting_position=game.Position(5, 5, landed=True))
+        ship = game.Ship(name="Lander")
+        # Base must be at the exact landed position, including the landed flag
         features = [
-            game.MapFeature("Mars Base", game.FeatureType.BASE, game.Position(5, 5)),
+            game.MapFeature("Mars Base", game.FeatureType.BASE, game.Position(5, 5, landed=True)),
         ]
         action = game.Action(
             acceleration=game.Vector(0, 1),  # Booster direction
@@ -413,24 +413,31 @@ class TestLandingAndTakeoff:
             taking_off=True
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5, landed=True)],
-            [game.Vector(0, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5, landed=True),
+            game.Vector(0, 0),
+            [],
+            action,
             features
         )
-
-        # XXX this fails
-        #assert not results[0].crashed
-        #assert not results[0].new_position.landed
-        #assert results[0].new_position == game.Position(5, 6, landed=False)
-        #assert results[0].new_vector == game.Vector(0, 1)
+        
+        # Takeoff succeeds
+        assert result.crashed == False
+        assert result.crash_reason == ""
+        
+        # Ship is no longer landed and moved to new position
+        assert result.new_position.landed == False
+        assert result.new_position.x == 5
+        assert result.new_position.y == 6
+        
+        # New vector from takeoff
+        assert result.new_vector.dx == 0
+        assert result.new_vector.dy == 1
     
     def test_takeoff_acceleration_too_large(self):
         """Takeoff with acceleration > 1 hex fails"""
-        ship = game.Ship(name="Lander", starting_position=game.Position(5, 5, landed=True))
+        ship = game.Ship(name="Lander")
         features = [
             game.MapFeature("Mars Base", game.FeatureType.BASE, game.Position(5, 5)),
         ]
@@ -440,17 +447,17 @@ class TestLandingAndTakeoff:
             taking_off=True
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(5, 5, landed=True)],
-            [game.Vector(0, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(5, 5, landed=True),
+            game.Vector(0, 0),
+            [],
+            action,
             features
         )
         
-        assert results[0].crashed
-        assert "too large" in results[0].crash_reason
+        assert result.crashed
+        assert "too large" in result.crash_reason
 
 
 class TestMovementPhase:
@@ -458,28 +465,27 @@ class TestMovementPhase:
     
     def test_complete_movement_no_complications(self):
         """Full movement phase with simple ship"""
-        ship = game.Ship(name="Test Ship", starting_position=game.Position(0, 0))
+        ship = game.Ship(name="Test Ship")
         action = game.Action(acceleration=game.Vector(0, 0), chosen_weak_gravity=[])
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(0, 0)],
-            [game.Vector(2, 0)],
-            [[]],  # No strong gravity
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(0, 0),
+            game.Vector(2, 0),
+            [],  # No strong gravity
+            action,
             []  # No features
         )
         
-        assert len(results) == 1
-        assert results[0].ship_name == "Test Ship"
-        assert results[0].new_position == game.Position(2, 0)
-        assert results[0].action.acceleration == game.Vector(0, 0)
-        assert results[0].action.chosen_weak_gravity == []
-        assert not results[0].crashed
+        assert result.ship_name == "Test Ship"
+        assert result.new_position == game.Position(2, 0)
+        assert result.action.acceleration == game.Vector(0, 0)
+        assert result.action.chosen_weak_gravity == []
+        assert not result.crashed
     
     def test_movement_with_gravity_collection(self):
         """Ship enters gravity hex, which affects next turn"""
-        ship = game.Ship(name="Test Ship", starting_position=game.Position(0, 0))
+        ship = game.Ship(name="Test Ship")
         action = game.Action(acceleration=game.Vector(0, 0), chosen_weak_gravity=[])
         features = [
             game.MapFeature(
@@ -490,100 +496,95 @@ class TestMovementPhase:
             )
         ]
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(0, 0)],
-            [game.Vector(2, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(0, 0),
+            game.Vector(2, 0),
+            [],
+            action,
             features
         )
         
-        assert len(results) == 1
-        assert results[0].new_position == game.Position(2, 0)
-        assert len(results[0].new_strong_gravity) == 1
-        assert results[0].new_strong_gravity[0] == game.Vector(0, 1)
+        assert result.new_position == game.Position(2, 0)
+        assert len(result.new_strong_gravity) == 1
+        assert result.new_strong_gravity[0] == game.Vector(0, 1)
     
     def test_movement_with_starting_gravity(self):
         """Ship starts turn with gravity from last turn"""
-        ship = game.Ship(name="Test Ship", starting_position=game.Position(0, 0))
+        ship = game.Ship(name="Test Ship")
         action = game.Action(acceleration=game.Vector(0, 0), chosen_weak_gravity=[])
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(0, 0)],
-            [game.Vector(2, 0)],
-            [[game.Vector(0, 1)]],  # Strong gravity from last turn
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(0, 0),
+            game.Vector(2, 0),
+            [game.Vector(0, 1)],  # Strong gravity from last turn
+            action,
             []
         )
         
-        assert len(results) == 1
         # Base vector (2,0) + gravity (0,1) = (2,1)
-        assert results[0].new_position == game.Position(2, 1)
-        assert results[0].start_strong_gravity == [game.Vector(0, 1)]
+        assert result.new_position == game.Position(2, 1)
+        assert result.start_strong_gravity == [game.Vector(0, 1)]
     
     def test_movement_with_acceleration(self):
         """Ship burns fuel to change course"""
-        ship = game.Ship(name="Test Ship", starting_position=game.Position(0, 0))
+        ship = game.Ship(name="Test Ship")
         action = game.Action(acceleration=game.Vector(1, 1), chosen_weak_gravity=[])
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(0, 0)],
-            [game.Vector(2, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(0, 0),
+            game.Vector(2, 0),
+            [],
+            action,
             []
         )
         
-        assert len(results) == 1
         # Base vector (2,0) + acceleration (1,1) = (3,1)
-        assert results[0].new_position == game.Position(3, 1)
-        assert results[0].action.acceleration == game.Vector(1, 1)
+        assert result.new_position == game.Position(3, 1)
+        assert result.action.acceleration == game.Vector(1, 1)
     
     def test_movement_with_chosen_weak_gravity(self):
         """Ship chooses to use weak gravity"""
-        ship = game.Ship(name="Test Ship", starting_position=game.Position(0, 0))
+        ship = game.Ship(name="Test Ship")
         action = game.Action(
             acceleration=game.Vector(0, 0), 
             chosen_weak_gravity=[game.Vector(0, 1)]
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(0, 0)],
-            [game.Vector(2, 0)],
-            [[]],
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(0, 0),
+            game.Vector(2, 0),
+            [],
+            action,
             []
         )
         
-        assert len(results) == 1
         # Base vector (2,0) + chosen weak gravity (0,1) = (2,1)
-        assert results[0].new_position == game.Position(2, 1)
-        assert results[0].action.chosen_weak_gravity == [game.Vector(0, 1)]
+        assert result.new_position == game.Position(2, 1)
+        assert result.action.chosen_weak_gravity == [game.Vector(0, 1)]
     
     def test_movement_with_gravity_and_acceleration(self):
         """Ship uses both gravity from last turn and fuel burn"""
-        ship = game.Ship(name="Test Ship", starting_position=game.Position(0, 0))
+        ship = game.Ship(name="Test Ship")
         action = game.Action(
             acceleration=game.Vector(1, 0),
             chosen_weak_gravity=[game.Vector(0, 1)]
         )
         
-        results = game.execute_movement_phase(
-            [ship],
-            [game.Position(0, 0)],
-            [game.Vector(2, 0)],
-            [[game.Vector(1, 0)]],  # Strong gravity from last turn
-            [action],
+        result = game.execute_movement_phase(
+            ship,
+            game.Position(0, 0),
+            game.Vector(2, 0),
+            [game.Vector(1, 0)],  # Strong gravity from last turn
+            action,
             []
         )
         
-        assert len(results) == 1
         # Base (2,0) + strong gravity (1,0) + chosen weak (0,1) + accel (1,0) = (4,1)
-        assert results[0].new_position == game.Position(4, 1)
+        assert result.new_position == game.Position(4, 1)
 
 
 class TestGame:
@@ -599,25 +600,29 @@ class TestGame:
     def test_add_ship(self):
         """Add a ship to the game"""
         g = game.Game()
-        ship = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        g.add_ship(ship)
+        ship = game.Ship(name="Alpha")
+        g.add_ship(ship, game.Position(0, 0))
         assert len(g.ships) == 1
         assert g.ships[0].name == "Alpha"
+        # Should have created an initial turn
+        assert len(g.turns) == 1
+        assert g.turns[0].ship_name == "Alpha"
+        assert g.turns[0].new_position == game.Position(0, 0)
     
     def test_duplicate_ship_names_rejected(self):
         """Cannot add two ships with the same name"""
         g = game.Game()
-        ship1 = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        ship2 = game.Ship(name="Alpha", starting_position=game.Position(5, 5))
-        g.add_ship(ship1)
+        ship1 = game.Ship(name="Alpha")
+        ship2 = game.Ship(name="Alpha")
+        g.add_ship(ship1, game.Position(0, 0))
         with pytest.raises(ValueError, match="already exists"):
-            g.add_ship(ship2)
+            g.add_ship(ship2, game.Position(5, 5))
     
     def test_get_ship(self):
         """Retrieve ship by name"""
         g = game.Game()
-        ship = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        g.add_ship(ship)
+        ship = game.Ship(name="Alpha")
+        g.add_ship(ship, game.Position(0, 0))
         retrieved = g.get_ship("Alpha")
         assert retrieved is not None
         assert retrieved.name == "Alpha"
@@ -628,25 +633,26 @@ class TestGame:
         retrieved = g.get_ship("Nonexistent")
         assert retrieved is None
     
-    def test_get_last_turn_no_turns(self):
-        """Get last turn for ship with no turns returns None"""
+    def test_get_last_turn_with_initial_turn(self):
+        """Get last turn for ship returns initial turn if no other turns"""
         g = game.Game()
-        ship = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        g.add_ship(ship)
+        ship = game.Ship(name="Alpha")
+        g.add_ship(ship, game.Position(0, 0))
         last_turn = g.get_last_turn("Alpha")
-        assert last_turn is None
+        assert last_turn is not None
+        assert last_turn.new_position == game.Position(0, 0)
     
     def test_add_turn_first_turn(self):
-        """Add first turn for a ship"""
+        """Add first actual movement turn for a ship"""
         g = game.Game()
-        ship = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        g.add_ship(ship)
+        ship = game.Ship(name="Alpha")
+        g.add_ship(ship, game.Position(0, 0))
         
         action = game.Action(acceleration=game.Vector(2, 0), chosen_weak_gravity=[])
         g.add_turn("Alpha", action)
         
-        assert len(g.turns) == 1
-        turn = g.turns[0]
+        assert len(g.turns) == 2  # Initial + first movement
+        turn = g.turns[1]
         assert turn.ship_name == "Alpha"
         assert turn.start_position == game.Position(0, 0)
         assert turn.start_vector == game.Vector(0, 0)
@@ -656,8 +662,8 @@ class TestGame:
     def test_add_turn_subsequent_turn(self):
         """Add second turn for a ship"""
         g = game.Game()
-        ship = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        g.add_ship(ship)
+        ship = game.Ship(name="Alpha")
+        g.add_ship(ship, game.Position(0, 0))
         
         # First turn
         action1 = game.Action(acceleration=game.Vector(2, 0), chosen_weak_gravity=[])
@@ -667,8 +673,8 @@ class TestGame:
         action2 = game.Action(acceleration=game.Vector(0, 1), chosen_weak_gravity=[])
         g.add_turn("Alpha", action2)
         
-        assert len(g.turns) == 2
-        turn2 = g.turns[1]
+        assert len(g.turns) == 3  # Initial + 2 movements
+        turn2 = g.turns[2]
         assert turn2.ship_name == "Alpha"
         assert turn2.start_position == game.Position(2, 0)  # End of turn 1
         assert turn2.start_vector == game.Vector(2, 0)  # Vector from turn 1
@@ -685,14 +691,14 @@ class TestGame:
                 game.Vector(0, 1)
             )
         ]
-        ship = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        g.add_ship(ship)
+        ship = game.Ship(name="Alpha")
+        g.add_ship(ship, game.Position(0, 0))
         
         # First turn - passes through gravity hex
         action1 = game.Action(acceleration=game.Vector(2, 0), chosen_weak_gravity=[])
         g.add_turn("Alpha", action1)
         
-        turn1 = g.turns[0]
+        turn1 = g.turns[1]  # Index 1 because initial turn is at 0
         assert len(turn1.new_strong_gravity) == 1
         assert turn1.new_strong_gravity[0] == game.Vector(0, 1)
         
@@ -700,7 +706,7 @@ class TestGame:
         action2 = game.Action(acceleration=game.Vector(0, 0), chosen_weak_gravity=[])
         g.add_turn("Alpha", action2)
         
-        turn2 = g.turns[1]
+        turn2 = g.turns[2]
         assert turn2.start_position == game.Position(2, 0)
         assert turn2.start_vector == game.Vector(2, 0)
         assert turn2.start_strong_gravity == [game.Vector(0, 1)]
@@ -717,10 +723,10 @@ class TestGame:
     def test_multiple_ships_independent_turns(self):
         """Multiple ships can have independent turn histories"""
         g = game.Game()
-        ship_a = game.Ship(name="Alpha", starting_position=game.Position(0, 0))
-        ship_b = game.Ship(name="Beta", starting_position=game.Position(10, 10))
-        g.add_ship(ship_a)
-        g.add_ship(ship_b)
+        ship_a = game.Ship(name="Alpha")
+        ship_b = game.Ship(name="Beta")
+        g.add_ship(ship_a, game.Position(0, 0))
+        g.add_ship(ship_b, game.Position(10, 10))
         
         # Alpha's first turn
         g.add_turn("Alpha", game.Action(acceleration=game.Vector(1, 0), chosen_weak_gravity=[]))
@@ -731,18 +737,18 @@ class TestGame:
         # Alpha's second turn
         g.add_turn("Alpha", game.Action(acceleration=game.Vector(0, 0), chosen_weak_gravity=[]))
         
-        assert len(g.turns) == 3
+        assert len(g.turns) == 5  # 2 initial + 3 movements
         
-        # Check Alpha's turns
+        # Check Alpha's turns (excluding initial)
         alpha_turns = [t for t in g.turns if t.ship_name == "Alpha"]
-        assert len(alpha_turns) == 2
-        assert alpha_turns[0].new_position == game.Position(1, 0)
-        assert alpha_turns[1].start_position == game.Position(1, 0)
+        assert len(alpha_turns) == 3  # Initial + 2 movements
+        assert alpha_turns[1].new_position == game.Position(1, 0)
+        assert alpha_turns[2].start_position == game.Position(1, 0)
         
-        # Check Beta's turns
+        # Check Beta's turns (excluding initial)
         beta_turns = [t for t in g.turns if t.ship_name == "Beta"]
-        assert len(beta_turns) == 1
-        assert beta_turns[0].new_position == game.Position(10, 11)
+        assert len(beta_turns) == 2  # Initial + 1 movement
+        assert beta_turns[1].new_position == game.Position(10, 11)
     
     def test_landing_and_takeoff_sequence(self):
         """Complete sequence: orbit -> land -> takeoff -> orbit"""
@@ -756,8 +762,8 @@ class TestGame:
             game.MapFeature("Mars Base", game.FeatureType.BASE, game.Position(10, 10)),
         ]
         
-        ship = game.Ship(name="Shuttle", starting_position=game.Position(10, 9))
-        g.add_ship(ship)
+        ship = game.Ship(name="Shuttle")
+        g.add_ship(ship, game.Position(10, 9))
         
         # Turn 1: Move into orbit
         g.add_turn("Shuttle", game.Action(

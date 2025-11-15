@@ -79,7 +79,6 @@ class MapFeature:
 class Ship:
     """Ship or ordnance in play"""
     name: str
-    starting_position: Position
 
 
 @dataclass
@@ -103,7 +102,6 @@ class Turn:
     new_vector: Vector  # This turn's movement (output from this turn)
     new_strong_gravity: List[Vector]  # Strong gravity for next turn
     new_weak_gravity_options: List[Vector]  # Weak gravity options for next turn
-    path: List[Position]  # Hexes traversed during movement
     crashed: bool = False
     crash_reason: str = ""
     off_map: bool = False
@@ -278,15 +276,15 @@ def get_gravity_effects(path: List[Position], features: List[MapFeature]) -> Tup
 
 
 def execute_movement_phase(
-    ships: List[Ship], 
-    positions: List[Position], 
-    start_vectors: List[Vector],
-    start_strong_gravity_list: List[List[Vector]],
-    actions: List[Action],
+    ship: Ship,
+    start_position: Position,
+    start_vector: Vector,
+    start_strong_gravity: List[Vector],
+    action: Action,
     features: List[MapFeature]
-) -> List[Turn]:
+) -> Turn:
     """
-    Execute the movement phase for all ships.
+    Execute the movement phase for a single ship.
     
     From rules p.2-3:
     1. Ships move along plotted courses (predicted course + acceleration)
@@ -300,266 +298,232 @@ def execute_movement_phase(
     3. Must land from orbit; must take off from where landed
     
     Args:
-        ships: List of ships to move
-        positions: Starting position for each ship (parallel to ships list)
-        start_vectors: Last turn's movement for each ship (parallel to ships list)
-        start_strong_gravity_list: Strong gravity from last turn for each ship
-        actions: Player actions this turn for each ship (parallel to ships list)
+        ship: Ship to move
+        start_position: Starting position for this ship
+        start_vector: Last turn's movement for this ship
+        start_strong_gravity: Strong gravity from last turn for this ship
+        action: Player action this turn for this ship
         features: Map features (planets, gravity, etc.)
-    """
-    results = []
     
-    for ship, start_position, prev_vector, start_strong_grav, action in zip(
-        ships, positions, start_vectors, start_strong_gravity_list, actions
-    ):
-        # Handle takeoff
-        if action.taking_off:
-            if not start_position.landed:
-                # Can't take off if not landed
-                result = Turn(
-                    ship_name=ship.name,
-                    action=action,
-                    start_position=start_position,
-                    start_vector=prev_vector,
-                    start_strong_gravity=start_strong_grav,
-                    new_position=start_position,
-                    new_vector=Vector(0, 0),
-                    new_strong_gravity=[],
-                    new_weak_gravity_options=[],
-                    path=[start_position],
-                    crashed=True,
-                    crash_reason="Cannot take off - not landed at base"
-                )
-                results.append(result)
-                continue
-            
-            # Check acceleration length BEFORE checking for base
-            # This ensures we validate the action parameters first
-            booster_accel = action.acceleration
-            if booster_accel.length() > 1:
-                result = Turn(
-                    ship_name=ship.name,
-                    action=action,
-                    start_position=start_position,
-                    start_vector=prev_vector,
-                    start_strong_gravity=start_strong_grav,
-                    new_position=start_position,
-                    new_vector=Vector(0, 0),
-                    new_strong_gravity=[],
-                    new_weak_gravity_options=[],
-                    path=[start_position],
-                    crashed=True,
-                    crash_reason="Takeoff acceleration too large (max 1 hex)"
-                )
-                results.append(result)
-                continue
-            
-            # Check if there's a base at this position
-            base = get_base_at_position(start_position, features)
-            if base is None:
-                result = Turn(
-                    ship_name=ship.name,
-                    action=action,
-                    start_position=start_position,
-                    start_vector=prev_vector,
-                    start_strong_gravity=start_strong_grav,
-                    new_position=start_position,
-                    new_vector=Vector(0, 0),
-                    new_strong_gravity=[],
-                    new_weak_gravity_options=[],
-                    path=[start_position],
-                    crashed=True,
-                    crash_reason="Cannot take off - no base at position"
-                )
-                results.append(result)
-                continue
-            
-            # Takeoff: free booster gives 1 hex acceleration
-            # The booster moves ship to adjacent gravity hex
-            # Acceleration in action adds to the booster movement
-            
-            # Ship moves to adjacent hex (the gravity hex above the base)
-            final_position = Position(
-                start_position.x + booster_accel.dx,
-                start_position.y + booster_accel.dy,
-                landed=False  # No longer landed
-            )
-            
-            # Path is just start to end
-            path = get_path_hexes(start_position, final_position)
-            
-            # New vector from takeoff
-            new_vector = booster_accel
-            
-            # Gravity cancels the takeoff velocity, leaving ship stationary
-            # So we collect gravity but the ship ends up with zero effective vector
-            strong_gravity_next, weak_gravity_next = get_gravity_effects(path, features)
-            
-            result = Turn(
+    Returns:
+        Turn object representing the result of this movement
+    """
+    # Handle takeoff
+    if action.taking_off:
+        if not start_position.landed:
+            # Can't take off if not landed
+            return Turn(
                 ship_name=ship.name,
                 action=action,
                 start_position=start_position,
-                start_vector=prev_vector,
-                start_strong_gravity=start_strong_grav,
-                new_position=final_position,
-                new_vector=new_vector,
-                new_strong_gravity=strong_gravity_next,
-                new_weak_gravity_options=weak_gravity_next,
-                path=path,
-                crashed=False,
-                in_orbit=False  # Just took off, not yet in stable orbit
-            )
-            results.append(result)
-            continue
-        
-        # Handle landing attempt
-        if action.landing:
-            # Must be in orbit to land
-            in_orbit = is_in_orbit(start_position, prev_vector, features)
-            if not in_orbit:
-                result = Turn(
-                    ship_name=ship.name,
-                    action=action,
-                    start_position=start_position,
-                    start_vector=prev_vector,
-                    start_strong_gravity=start_strong_grav,
-                    new_position=start_position,
-                    new_vector=Vector(0, 0),
-                    new_strong_gravity=[],
-                    new_weak_gravity_options=[],
-                    path=[start_position],
-                    crashed=True,
-                    crash_reason="Cannot land - not in orbit"
-                )
-                results.append(result)
-                continue
-            
-            # Landing requires expending 1 fuel point (acceleration must be length 1)
-            if action.acceleration.length() != 1:
-                result = Turn(
-                    ship_name=ship.name,
-                    action=action,
-                    start_position=start_position,
-                    start_vector=prev_vector,
-                    start_strong_gravity=start_strong_grav,
-                    new_position=start_position,
-                    new_vector=Vector(0, 0),
-                    new_strong_gravity=[],
-                    new_weak_gravity_options=[],
-                    path=[start_position],
-                    crashed=True,
-                    crash_reason="Landing requires expending exactly 1 fuel point"
-                )
-                results.append(result)
-                continue
-            
-            # Calculate landing position (includes the acceleration)
-            final_position = calculate_actual_endpoint(
-                start_position, prev_vector, start_strong_grav, 
-                action.chosen_weak_gravity, action.acceleration
-            )
-            
-            # Check if there's a base at the landing position
-            base = get_base_at_position(final_position, features)
-            if base is None:
-                result = Turn(
-                    ship_name=ship.name,
-                    action=action,
-                    start_position=start_position,
-                    start_vector=prev_vector,
-                    start_strong_gravity=start_strong_grav,
-                    new_position=final_position,
-                    new_vector=Vector(0, 0),
-                    new_strong_gravity=[],
-                    new_weak_gravity_options=[],
-                    path=[start_position, final_position],
-                    crashed=True,
-                    crash_reason="Cannot land - no base at destination"
-                )
-                results.append(result)
-                continue
-            
-            # Successful landing
-            final_position.landed = True
-            
-            result = Turn(
-                ship_name=ship.name,
-                action=action,
-                start_position=start_position,
-                start_vector=prev_vector,
-                start_strong_gravity=start_strong_grav,
-                new_position=final_position,
-                new_vector=Vector(0, 0),  # Ship is now stationary on surface
-                new_strong_gravity=[],
-                new_weak_gravity_options=[],
-                path=[start_position, final_position],
-                crashed=False,
-                in_orbit=False
-            )
-            results.append(result)
-            continue
-        
-        # Normal movement (not landing or taking off)
-        if start_position.landed:
-            # Ship is landed - cannot move without taking off
-            result = Turn(
-                ship_name=ship.name,
-                action=action,
-                start_position=start_position,
-                start_vector=prev_vector,
-                start_strong_gravity=start_strong_grav,
+                start_vector=start_vector,
+                start_strong_gravity=start_strong_gravity,
                 new_position=start_position,
                 new_vector=Vector(0, 0),
                 new_strong_gravity=[],
                 new_weak_gravity_options=[],
-                path=[start_position],
                 crashed=True,
-                crash_reason="Ship is landed - must take off first"
+                crash_reason="Cannot take off - not landed at base"
             )
-            results.append(result)
-            continue
         
-        # Calculate final position for this turn
-        final_position = calculate_actual_endpoint(
-            start_position, prev_vector, start_strong_grav, 
-            action.chosen_weak_gravity, action.acceleration
+        # Check acceleration length BEFORE checking for base
+        # This ensures we validate the action parameters first
+        booster_accel = action.acceleration
+        if booster_accel.length() > 1:
+            return Turn(
+                ship_name=ship.name,
+                action=action,
+                start_position=start_position,
+                start_vector=start_vector,
+                start_strong_gravity=start_strong_gravity,
+                new_position=start_position,
+                new_vector=Vector(0, 0),
+                new_strong_gravity=[],
+                new_weak_gravity_options=[],
+                crashed=True,
+                crash_reason="Takeoff acceleration too large (max 1 hex)"
+            )
+        
+        # Check if there's a base at this position
+        base = get_base_at_position(start_position, features)
+        if base is None:
+            return Turn(
+                ship_name=ship.name,
+                action=action,
+                start_position=start_position,
+                start_vector=start_vector,
+                start_strong_gravity=start_strong_gravity,
+                new_position=start_position,
+                new_vector=Vector(0, 0),
+                new_strong_gravity=[],
+                new_weak_gravity_options=[],
+                crashed=True,
+                crash_reason="Cannot take off - no base at position"
+            )
+        
+        # Takeoff: free booster gives 1 hex acceleration
+        # The booster moves ship to adjacent gravity hex
+        # Acceleration in action adds to the booster movement
+        
+        # Ship moves to adjacent hex (the gravity hex above the base)
+        final_position = Position(
+            start_position.x + booster_accel.dx,
+            start_position.y + booster_accel.dy,
+            landed=False  # No longer landed
         )
         
-        # Get path from start to end
+        # Path is just start to end
         path = get_path_hexes(start_position, final_position)
         
-        # Check for collisions
-        crashed, crash_reason = check_collision(path, features)
+        # New vector from takeoff
+        new_vector = booster_accel
         
-        # Calculate new vector (from start to end position)
-        new_vector = final_position - start_position
-        
-        # Determine gravity effects for NEXT turn from hexes entered THIS turn
+        # Gravity cancels the takeoff velocity, leaving ship stationary
+        # So we collect gravity but the ship ends up with zero effective vector
         strong_gravity_next, weak_gravity_next = get_gravity_effects(path, features)
         
-        # Check if in orbit
-        in_orbit = is_in_orbit(final_position, new_vector, features)
-        
-        result = Turn(
+        return Turn(
             ship_name=ship.name,
             action=action,
             start_position=start_position,
-            start_vector=prev_vector,
-            start_strong_gravity=start_strong_grav,
+            start_vector=start_vector,
+            start_strong_gravity=start_strong_gravity,
             new_position=final_position,
             new_vector=new_vector,
             new_strong_gravity=strong_gravity_next,
             new_weak_gravity_options=weak_gravity_next,
-            path=path,
-            crashed=crashed,
-            crash_reason=crash_reason,
-            off_map=crash_reason == "Off map",
-            in_orbit=in_orbit
+            crashed=False,
+            in_orbit=False  # Just took off, not yet in stable orbit
+        )
+    
+    # Handle landing attempt
+    if action.landing:
+        # Must be in orbit to land
+        in_orbit = is_in_orbit(start_position, start_vector, features)
+        if not in_orbit:
+            return Turn(
+                ship_name=ship.name,
+                action=action,
+                start_position=start_position,
+                start_vector=start_vector,
+                start_strong_gravity=start_strong_gravity,
+                new_position=start_position,
+                new_vector=Vector(0, 0),
+                new_strong_gravity=[],
+                new_weak_gravity_options=[],
+                crashed=True,
+                crash_reason="Cannot land - not in orbit"
+            )
+        
+        # Landing requires expending 1 fuel point (acceleration must be length 1)
+        if action.acceleration.length() != 1:
+            return Turn(
+                ship_name=ship.name,
+                action=action,
+                start_position=start_position,
+                start_vector=start_vector,
+                start_strong_gravity=start_strong_gravity,
+                new_position=start_position,
+                new_vector=Vector(0, 0),
+                new_strong_gravity=[],
+                new_weak_gravity_options=[],
+                crashed=True,
+                crash_reason="Landing requires expending exactly 1 fuel point"
+            )
+        
+        # Calculate landing position (includes the acceleration)
+        final_position = calculate_actual_endpoint(
+            start_position, start_vector, start_strong_gravity, 
+            action.chosen_weak_gravity, action.acceleration
         )
         
-        results.append(result)
+        # Check if there's a base at the landing position
+        base = get_base_at_position(final_position, features)
+        if base is None:
+            return Turn(
+                ship_name=ship.name,
+                action=action,
+                start_position=start_position,
+                start_vector=start_vector,
+                start_strong_gravity=start_strong_gravity,
+                new_position=final_position,
+                new_vector=Vector(0, 0),
+                new_strong_gravity=[],
+                new_weak_gravity_options=[],
+                crashed=True,
+                crash_reason="Cannot land - no base at destination"
+            )
+        
+        # Successful landing
+        final_position.landed = True
+        
+        return Turn(
+            ship_name=ship.name,
+            action=action,
+            start_position=start_position,
+            start_vector=start_vector,
+            start_strong_gravity=start_strong_gravity,
+            new_position=final_position,
+            new_vector=Vector(0, 0),  # Ship is now stationary on surface
+            new_strong_gravity=[],
+            new_weak_gravity_options=[],
+            crashed=False,
+            in_orbit=False
+        )
     
-    return results
+    # Normal movement (not landing or taking off)
+    if start_position.landed:
+        # Ship is landed - cannot move without taking off
+        return Turn(
+            ship_name=ship.name,
+            action=action,
+            start_position=start_position,
+            start_vector=start_vector,
+            start_strong_gravity=start_strong_gravity,
+            new_position=start_position,
+            new_vector=Vector(0, 0),
+            new_strong_gravity=[],
+            new_weak_gravity_options=[],
+            crashed=True,
+            crash_reason="Ship is landed - must take off first"
+        )
+    
+    # Calculate final position for this turn
+    final_position = calculate_actual_endpoint(
+        start_position, start_vector, start_strong_gravity, 
+        action.chosen_weak_gravity, action.acceleration
+    )
+    
+    # Get path from start to end
+    path = get_path_hexes(start_position, final_position)
+    
+    # Check for collisions
+    crashed, crash_reason = check_collision(path, features)
+    
+    # Calculate new vector (from start to end position)
+    new_vector = final_position - start_position
+    
+    # Determine gravity effects for NEXT turn from hexes entered THIS turn
+    strong_gravity_next, weak_gravity_next = get_gravity_effects(path, features)
+    
+    # Check if in orbit
+    in_orbit = is_in_orbit(final_position, new_vector, features)
+    
+    return Turn(
+        ship_name=ship.name,
+        action=action,
+        start_position=start_position,
+        start_vector=start_vector,
+        start_strong_gravity=start_strong_gravity,
+        new_position=final_position,
+        new_vector=new_vector,
+        new_strong_gravity=strong_gravity_next,
+        new_weak_gravity_options=weak_gravity_next,
+        crashed=crashed,
+        crash_reason=crash_reason,
+        off_map=crash_reason == "Off map",
+        in_orbit=in_orbit
+    )
 
 
 @dataclass
@@ -575,11 +539,29 @@ class Game:
         if len(ship_names) != len(set(ship_names)):
             raise ValueError("All ships must have unique names")
     
-    def add_ship(self, ship: Ship):
-        """Add a ship to the game"""
+    def add_ship(self, ship: Ship, start_position: Position):
+        """Add a ship to the game at the given starting position"""
         if any(s.name == ship.name for s in self.ships):
             raise ValueError(f"Ship with name '{ship.name}' already exists")
         self.ships.append(ship)
+        
+        # Create an initial turn for the ship at the starting position
+        initial_turn = Turn(
+            ship_name=ship.name,
+            action=Action(acceleration=Vector(0, 0), chosen_weak_gravity=[]),
+            start_position=start_position,
+            start_vector=Vector(0, 0),
+            start_strong_gravity=[],
+            new_position=start_position,
+            new_vector=Vector(0, 0),
+            new_strong_gravity=[],
+            new_weak_gravity_options=[],
+            crashed=False,
+            crash_reason="",
+            off_map=False,
+            in_orbit=False
+        )
+        self.turns.append(initial_turn)
     
     def get_ship(self, ship_name: str) -> Optional[Ship]:
         """Get ship by name"""
@@ -609,28 +591,25 @@ class Game:
         prev_turn = self.get_last_turn(ship_name)
         
         if prev_turn is None:
-            # First turn for this ship - starts at starting position with zero vector
-            start_position = ship.starting_position
-            start_vector = Vector(0, 0)
-            start_strong_gravity = []
-        else:
-            # Use previous turn's ending state as this turn's starting state
-            start_position = prev_turn.new_position
-            start_vector = prev_turn.new_vector
-            start_strong_gravity = prev_turn.new_strong_gravity
+            raise ValueError(f"Ship '{ship_name}' has no previous turn - must add ship first")
+        
+        # Use previous turn's ending state as this turn's starting state
+        start_position = prev_turn.new_position
+        start_vector = prev_turn.new_vector
+        start_strong_gravity = prev_turn.new_strong_gravity
         
         # Execute movement for this single ship
-        results = execute_movement_phase(
-            [ship],
-            [start_position],
-            [start_vector],
-            [start_strong_gravity],
-            [action],
+        result = execute_movement_phase(
+            ship,
+            start_position,
+            start_vector,
+            start_strong_gravity,
+            action,
             self.map_features
         )
         
         # Add the resulting turn to our history
-        self.turns.append(results[0])
+        self.turns.append(result)
 
 
 # Example usage and test
@@ -651,8 +630,8 @@ if __name__ == "__main__":
     ]
     
     # Add ship starting in orbit
-    ship1 = Ship(name="Lander One", starting_position=Position(10, 9))
-    game.add_ship(ship1)
+    ship1 = Ship(name="Lander One")
+    game.add_ship(ship1, Position(10, 9))
     
     # Turn 1: Ship is in orbit, moving between gravity hexes
     print("Turn 1: Ship establishes orbit")
@@ -690,3 +669,4 @@ if __name__ == "__main__":
     print(f"  Position: {turn3.start_position} -> {turn3.new_position}")
     print(f"  Landed: {turn3.start_position.landed} -> {turn3.new_position.landed}")
     print(f"  New Vector: {turn3.new_vector}")
+    
