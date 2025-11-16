@@ -1,5 +1,5 @@
 """
-hex_engine.py
+board.py
 
 Pure-Python hex-board game engine which outputs SVG snapshots for a sequence of turns.
 
@@ -245,57 +245,23 @@ class HexGame:
         with open(filename, "w", encoding="utf-8") as f:
             f.write(svg)
 
-    def save_sequence(self, out_dir: str, prefix: str = "turn"):
-        """
-        Save one SVG per historical turn.
-        Behavior: we rewind state and reapply turns one-by-one, saving after each application.
-        The saved SVG for turn N shows the board AFTER the N-th turn.
-        """
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-
-        # Save initial (turn 0) snapshot: before any turns (empty or initial pieces)
-        # To do this we need to reconstruct from history; but we saved history as pre-positions only.
-        # The simplest approach: re-run actions from scratch using copies.
-        # So instead, we'll assume the user provides turns and calls apply_turns() themselves,
-        # or they can reconstruct by reinitializing a new engine and applying turns stepwise.
-
-        raise NotImplementedError("Use run_save_sequence() which accepts turns and saves snapshots.")
-
-    # Convenience static runner that applies given turns and saves snapshots
-    @staticmethod
-    def run_save_sequence(turns: List[Turn], out_dir: str, initial_pieces: Optional[List[Dict]] = None,
-                          hex_size: float = 40.0):
-        """
-        Create an engine, place optional initial pieces, apply each turn and save an SVG per turn.
-        Filenames: out_dir/turn-001.svg, turn-002.svg, ...
-        """
-        engine = HexGame(hex_size=hex_size)
-        if initial_pieces:
-            for ip in initial_pieces:
-                engine.place_piece(ip["id"], ip["q"], ip["r"], ip.get("color", "gray"))
-
-        # Save initial snapshot as turn-000 (if desired)
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        engine.save_svg(os.path.join(out_dir, f"turn-000.svg"))
-
-        for i, t in enumerate(turns, start=1):
-            engine.apply_turn(t)
-            engine.save_svg(os.path.join(out_dir, f"turn-{i:03d}.svg"))
-
-# ---- Example usage (can be run when script executed directly) ----
 if __name__ == "__main__":
-    # Build a short scenario
+    # Example scenario
     turns = [
-        Turn([{"type":"place","id":"A","q":0,"r":0,"color":"#d9534f"},
-              {"type":"place","id":"B","q":2,"r":-1,"color":"#337ab7"}]),
-        Turn([{"type":"move","id":"A","to":(1,0)}]),
-        Turn([{"type":"move","id":"B","to":(1,1), "color":"#222"}]),
-        Turn([{"type":"arrow","from":(1,0),"to":(1,1),"color":"#555"}]),
-        Turn([{"type":"remove","id":"A"}])
+        Turn([{"type": "place", "id": "A", "q": 0, "r": 0, "color": "#d9534f"},
+              {"type": "place", "id": "B", "q": 2, "r": -1, "color": "#337ab7"}]),
+
+        Turn([{"type": "move", "id": "A", "to": (1, 0)}]),
+
+        Turn([{"type": "move", "id": "B", "to": (1, 1)}]),
+
+        Turn([{"type": "arrow", "from": (1, 0), "to": (1, 1), "color": "#555"}]),
+
+        Turn([{"type": "remove", "id": "A"}])
     ]
 
-    outdir = "out_svgs"
-    HexGame.run_save_sequence(turns, outdir, initial_pieces=None)
-    print(f"Saved SVG sequence to ./{outdir}/ (turn-000.svg ... turn-{len(turns):03d}.svg)")
+    game = HexGame()
+    game.apply_turns(turns)
+
+    # Output final SVG to stdout
+    print(game.render_svg())
